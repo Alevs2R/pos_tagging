@@ -117,16 +117,40 @@ def train_model(train_file, model_file):
     tag_to_ix = {w: i for i, w in enumerate(list(tags_set))}
     ix_to_tag = {i: w for i, w in enumerate(list(tags_set))}
 
+    pad_word = len(word_to_ix)
+    pad_char = len(char_to_ix)
+    pad_tag = len(tag_to_ix)
+
     sentences.sort(key=lambda s: len(s[0]))
 
-    # generate char embeddings
+    WORD_EMBEDDING_DIM = 6
     CHAR_EMBEDDING_DIM = 6
-    CHAR_RADIUS = 3
+    CONV_OUT_DIM = 3
+    HIDDEN_DIM = 6
 
-    # sos is a start of sequence, eos is an end of sequence
+    model = LSTMTagger(WORD_EMBEDDING_DIM, CHAR_EMBEDDING_DIM, CONV_OUT_DIM, HIDDEN_DIM, 
+                   len(word_to_ix) + 1, len(char_to_ix) + 1, len(tag_to_ix) + 1)
+
+    loss_function = nn.NLLLoss()
+    optimizer = optim.SGD(model.parameters(), lr=0.1)
+
+    
+
+    print('Finished...')   
 
 
-    print('Finished...')      
+def extend_by_pads(chars_batch, pad):
+    max_len = 0
+
+    for sent in chars_batch:
+      for word in sent:
+        if len(word) > max_len:
+          max_len = len(word)
+
+    for sen in chars_batch:
+      for word in sen:
+        if len(word) < max_len:
+          word.extend([pad] * (max_len - len(word)))   
 
 
 if __name__ == "__main__":
