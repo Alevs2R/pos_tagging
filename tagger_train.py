@@ -55,10 +55,11 @@ def prepare_sequence(seq, to_ix):
 
 
 def prepare_char_sequence(seq, to_ix):
-  res = []
-  for word in seq:
-    res.append([to_ix[char] for char in word])
+    res = []
+    for word in seq:
+        res.append([to_ix[char] for char in word])
 
+    return res
 
 class LSTMTagger(nn.Module):
 
@@ -70,7 +71,7 @@ class LSTMTagger(nn.Module):
         self.char_embeddings = nn.Embedding(char_vocab_size, char_embedding_dim)
 
         kernel_size = 4
-        self.char_conv = nn.Conv1d(char_embedding_dim, conv_out_dim, kernel_size)
+        self.char_conv = nn.Conv1d(char_embedding_dim, conv_out_dim, kernel_size=(1, 4))
 
         self.lstm = nn.LSTM(word_embedding_dim + char_embedding_dim, hidden_dim, bidirectional=True, batch_first=True)
 
@@ -82,8 +83,8 @@ class LSTMTagger(nn.Module):
         batch_s, sent_s, word_s, channel_s = char_embeds.shape
         char_embeds = char_embeds.view(batch_s, channel_s, sent_s, word_s)
 
-        char_repr = self.char_conv(char_embeds)
-        char_repr, _ = torch.max(char_repr, dim = max_pooling_size)
+        char_embeds = self.char_conv(char_embeds)
+        char_embeds, _ = torch.max(char_embeds, dim=max_pooling_size)
 
         batch_s, channel_s, word_s = char_embeds.shape
         char_embeds = char_embeds.view(batch_s, word_s, channel_s)  
@@ -105,6 +106,25 @@ class LSTMTagger(nn.Module):
 
         return tag_scores.view(batch_s * word_s, -1)
 
+def adjust_sym_batch(chars_batch, pad_char):
+    max_len = 0
+
+    for sen in chars_batch:
+        # lens = np.array([len(w) for w in sen])
+        # max_len = max(np.max(lens),max_len)
+        # print(max_len)
+        for word in sen:
+            if len(word) > max_len:
+                max_len = len(word)
+
+    for sen in chars_batch:
+        for word in sen:
+            if len(word) < max_len:
+                word.extend([pad_char] * (max_len - len(word)))
+
+
+def one_epoch():
+    pass
 
 def train_model(train_file, model_file):
     # parse data
@@ -140,6 +160,55 @@ def train_model(train_file, model_file):
     loss_function = nn.NLLLoss()
     optimizer = optim.SGD(model.parameters(), lr=0.1)
 
+    batch_size = 4
+
+    for epoch in range(10):
+        train_index = 0
+
+        while train_index < len(sentences):
+            sentence_batch = []
+            symbols_batch = []
+            target_batch = []
+
+            # manually create batches
+            for i in range(batch_size):
+                if train_index + i == len(sentences):
+                    break
+
+                sentence_batch.append(prepare_sequence(sentences[train_index + i][0], word_to_ix))
+                symbols_batch.append(prepare_char_sequence(sentences[train_index + i][0], char_to_ix))
+                target_batch.append(prepare_sequence(sentences[train_index + i][1], tag_to_ix))
+
+            train_index += batch_size
+
+            # pad sentence and word batches
+            curr_len = len(sentence_batch[-1])
+
+            if not all(len(x) == len(sentence_batch[-1]) for x in sentence_batch):
+                for word_seq, char_seq, tag_seq in zip(sentence_batch, symbols_batch, target_batch):
+                    while len(word_seq) != curr_len:
+                        word_seq.append(pad_word)
+                        tag_seq.append(pad_tag)
+                        char_seq.append([pad_char])
+
+            adjust_sym_batch(symbols_batch, pad_char)
+
+            print(sentence_batch)
+            print(symbols_batch)
+            print(target_batch)
+
+            sen_in = torch.tensor(sentence_batch, dtype=torch.long)
+            sym_in = torch.tensor(symbols_batch, dtype=torch.long)
+            targets = torch.tensor(target_batch, dtype=torch.long)
+
+            model.zero_grad()
+
+            tag_scores = model(sen_in, sym_in)
+
+            loss = loss_function(tag_scores.squeeze(1), targets.view(len(sentence_batch) * curr_len, ))
+            loss.backward()
+            optimizer.step()
+        print("Epoch " + str(epoch))
 
 
     print('Finished...')   
