@@ -73,9 +73,10 @@ class LSTMTagger(nn.Module):
         kernel_size = 4
         self.char_conv = nn.Conv1d(char_embedding_dim, conv_out_dim, kernel_size=(1, 4))
 
-        self.lstm = nn.LSTM(word_embedding_dim + char_embedding_dim, hidden_dim, bidirectional=True, batch_first=True)
+        # self.lstm = nn.LSTM(word_embedding_dim + char_embedding_dim, hidden_dim, bidirectional=True, batch_first=True)
+        self.lstm = nn.LSTM(word_embedding_dim + conv_out_dim, hidden_dim, bidirectional=True, batch_first=True)
 
-        self.hidden2tag = nn.Linear(hidden_dim, tagset_size)
+        self.hidden2tag = nn.Linear(2 * hidden_dim, tagset_size)
 
     def apply_conv(self, char_embeds):
         max_pooling_size = 3
@@ -193,9 +194,9 @@ def train_model(train_file, model_file):
 
             adjust_sym_batch(symbols_batch, pad_char)
 
-            print(sentence_batch)
-            print(symbols_batch)
-            print(target_batch)
+            # print(sentence_batch)
+            # print(symbols_batch)
+            # print(target_batch)
 
             sen_in = torch.tensor(sentence_batch, dtype=torch.long)
             sym_in = torch.tensor(symbols_batch, dtype=torch.long)
