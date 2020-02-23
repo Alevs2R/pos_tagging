@@ -48,6 +48,58 @@ def data_idx(sentences):
 
     return word_to_ix, char_to_ix
 
+
+def prepare_sequence(seq, to_ix):  
+    idxs = [to_ix[w] for w in seq]
+    return idxs
+
+
+def prepare_char_sequence(seq, to_ix):
+  res = []
+  for word in seq:
+    res.append([to_ix[char] for char in word])
+
+
+class LSTMTagger(nn.Module):
+
+    def __init__(self, word_embedding_dim, char_embedding_dim, conv_out_dim, hidden_dim, word_vocab_size, char_vocab_size, tagset_size):
+        super(LSTMTagger, self).__init__()
+        self.hidden_dim = hidden_dim
+
+        self.word_embeddings = nn.Embedding(word_vocab_size, word_embedding_dim)
+        self.char_embeddings = nn.Embedding(char_vocab_size, char_embedding_dim)
+
+        kernel_size = 4
+        self.char_conv = nn.Conv1d(char_embedding_dim, conv_out_dim, kernel_size)
+
+        self.lstm = nn.LSTM(word_embedding_dim + char_embedding_dim, hidden_dim, bidirectional=True, batch_first=True)
+
+        self.hidden2tag = nn.Linear(hidden_dim, tagset_size)
+
+    def forward(self, words, chars):
+        max_pooling_size = 3
+
+        word_embeds = self.word_embeddings(words)
+        char_embeds = self.char_embeddings(chars)
+
+        batch_s, sent_s, word_s, channel_s = char_embeds.shape
+        char_embeds = char_embeds.view(batch_s, channel_s, sent_s, word_s)
+
+        char_repr = self.char_conv(char_embeds)
+        char_repr, _ = torch.max(char_repr, dim = max_pooling_size)
+
+        batch_s, channel_s, word_s = char_embeds.shape
+        char_embeds = char_embeds.view(batch_s, word_s, channel_s)    
+
+        embeds = torch.cat((word_embeds, char_embeds), dim=2)
+
+        lstm_out, _ = self.lstm(embeds)
+        tag_space = self.hidden2tag(lstm_out)
+        tag_scores = F.log_softmax(tag_space, dim=1)
+
+        return tag_scores.view(batch_s * word_s, -1)
+
+
 def train_model(train_file, model_file):
     # parse data
     sentences = words_tags_split(train_file)
@@ -72,10 +124,7 @@ def train_model(train_file, model_file):
     CHAR_RADIUS = 3
 
     # sos is a start of sequence, eos is an end of sequence
-    vocab = list(string.printable)
-    char_embed = nn.Embedding(len(vocab), CHAR_EMBEDDING_DIM)
 
-    word_embeddings = nn.Embedding()
 
     print('Finished...')      
 
