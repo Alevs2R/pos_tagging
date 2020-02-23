@@ -6,6 +6,9 @@ import numpy as np
 import string
 import random
 import os
+import time
+import pickle
+
 
 import torch
 import torch.nn as nn
@@ -107,22 +110,6 @@ class LSTMTagger(nn.Module):
 
         return tag_scores.view(batch_s * word_s, -1)
 
-def adjust_sym_batch(chars_batch, pad_char):
-    max_len = 0
-
-    for sen in chars_batch:
-        # lens = np.array([len(w) for w in sen])
-        # max_len = max(np.max(lens),max_len)
-        # print(max_len)
-        for word in sen:
-            if len(word) > max_len:
-                max_len = len(word)
-
-    for sen in chars_batch:
-        for word in sen:
-            if len(word) < max_len:
-                word.extend([pad_char] * (max_len - len(word)))
-
 
 def one_epoch():
     pass
@@ -192,7 +179,7 @@ def train_model(train_file, model_file):
                         tag_seq.append(pad_tag)
                         char_seq.append([pad_char])
 
-            adjust_sym_batch(symbols_batch, pad_char)
+            extend_by_pads(symbols_batch, pad_char)
 
             # print(sentence_batch)
             # print(symbols_batch)
@@ -209,8 +196,10 @@ def train_model(train_file, model_file):
             loss = loss_function(tag_scores.squeeze(1), targets.view(len(sentence_batch) * curr_len, ))
             loss.backward()
             optimizer.step()
-        print("Epoch " + str(epoch))
 
+        print("Epoch " + str(epoch))
+        with open('pos_model'+str(epoch)+'.pickle', 'wb') as f:
+            pickle.dump(model, f)
 
     print('Finished...')   
 
