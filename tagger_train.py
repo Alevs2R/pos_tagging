@@ -76,11 +76,8 @@ class LSTMTagger(nn.Module):
 
         self.hidden2tag = nn.Linear(hidden_dim, tagset_size)
 
-    def forward(self, words, chars):
+    def apply_conv(self, char_embeds):
         max_pooling_size = 3
-
-        word_embeds = self.word_embeddings(words)
-        char_embeds = self.char_embeddings(chars)
 
         batch_s, sent_s, word_s, channel_s = char_embeds.shape
         char_embeds = char_embeds.view(batch_s, channel_s, sent_s, word_s)
@@ -89,7 +86,16 @@ class LSTMTagger(nn.Module):
         char_repr, _ = torch.max(char_repr, dim = max_pooling_size)
 
         batch_s, channel_s, word_s = char_embeds.shape
-        char_embeds = char_embeds.view(batch_s, word_s, channel_s)    
+        char_embeds = char_embeds.view(batch_s, word_s, channel_s)  
+
+        return char_embeds,batch_s,word_s
+
+    def forward(self, words, chars):
+
+        word_embeds = self.word_embeddings(words)
+        char_embeds = self.char_embeddings(chars)
+
+        char_embeds, batch_s, word_s = self.apply_conv(char_embeds)
 
         embeds = torch.cat((word_embeds, char_embeds), dim=2)
 
@@ -134,7 +140,7 @@ def train_model(train_file, model_file):
     loss_function = nn.NLLLoss()
     optimizer = optim.SGD(model.parameters(), lr=0.1)
 
-    
+
 
     print('Finished...')   
 
