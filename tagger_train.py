@@ -193,6 +193,7 @@ def train_model(train_file, model_file):
             b_sentence, b_symbols, b_target = create_batches(sentences, step,word_to_ix,char_to_ix,tag_to_ix, batch_size)
 
             # batches pading
+            t_len = len(b_sentence[-1])
             pad_sentences_equal(b_sentence, b_symbols, b_target, pad_word, pad_char, pad_tag)
 
             extend_by_pads(b_symbols, pad_char)
