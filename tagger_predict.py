@@ -7,8 +7,9 @@ import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
 import pickle
+import random
 
-def words_split(train_file):
+def words_split(train_file, word_to_ix):
     reader = open(train_file)
     train_lines = reader.readlines()
     reader.close()
@@ -18,6 +19,9 @@ def words_split(train_file):
     for train_line in train_lines:
 
         words = train_line.strip().split(' ')
+        for i, word in enumerate(words):
+            if word not in word_to_ix:
+                words[i] = 'game' # just random word, for example game
 
         sentences.append(words)     
 
@@ -95,11 +99,11 @@ def extend_by_pads(chars_batch, pad):
                 word.extend([pad] * (max_len - len(word)))
 
 def tag_sentence(test_file, model_file, out_file):
-    
-    sentences = words_split(test_file)
-    
-    word_to_ix, char_to_ix, ix_to_tag, model_state_dict = torch.load(model_file)
 
+    word_to_ix, char_to_ix, ix_to_tag, model_state_dict = torch.load(model_file)
+    
+    sentences = words_split(test_file, word_to_ix)
+    
     pad_char = len(char_to_ix)
     
     WORD_EMBEDDING_DIM = 6
@@ -112,6 +116,8 @@ def tag_sentence(test_file, model_file, out_file):
 
     model.load_state_dict(model_state_dict)       
 
+    out_file_ = open(out_file, "w")
+
     for sent in sentences:
         sent_prepared = [prepare_sequence(sent, word_to_ix)]
         chars_prepared = [prepare_char_sequence(sent, char_to_ix)]
@@ -121,10 +127,18 @@ def tag_sentence(test_file, model_file, out_file):
         sen_in = torch.tensor(sent_prepared, dtype=torch.long)
         sym_in = torch.tensor(chars_prepared, dtype=torch.long)
         tag_scores = model(sen_in, sym_in)
-        print(tag_scores.squeeze(1))
-        exit(0)
-    # tag_scores = model(sen_in, sym_in)
+        values, indices = tag_scores.max(1)
+        
+        tag_ids = indices.tolist()
 
+        for word, tag_id in zip(sent, tag_ids):
+            if tag_id == len(ix_to_tag):
+                tag_id = random.randrange(len(ix_to_tag))
+            tag = ix_to_tag[tag_id]   
+            out_file_.write(word + '/' + tag + ' ') 
+        
+        out_file_.write('\n')
+    out_file_.close()
     print('Finished...')
 
 
