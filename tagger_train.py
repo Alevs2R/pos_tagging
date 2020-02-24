@@ -76,7 +76,6 @@ class LSTMTagger(nn.Module):
         kernel_size = 4
         self.char_conv = nn.Conv1d(char_embedding_dim, conv_out_dim, kernel_size=(1, 4))
 
-        # self.lstm = nn.LSTM(word_embedding_dim + char_embedding_dim, hidden_dim, bidirectional=True, batch_first=True)
         self.lstm = nn.LSTM(word_embedding_dim + conv_out_dim, hidden_dim, bidirectional=True, batch_first=True)
 
         self.hidden2tag = nn.Linear(2 * hidden_dim, tagset_size)
@@ -206,16 +205,16 @@ def train_model(train_file, model_file):
 
 def extend_by_pads(chars_batch, pad):
     max_len = 0
-
     for sent in chars_batch:
-      for word in sent:
-        if len(word) > max_len:
-          max_len = len(word)
+        lens = np.array([len(word) for word in sent])
+        print(sent)
+        max_len = max(np.max(lens),max_len)
+
 
     for sen in chars_batch:
-      for word in sen:
-        if len(word) < max_len:
-          word.extend([pad] * (max_len - len(word)))   
+        for word in sen:
+            if len(word) < max_len:
+                word.extend([pad] * (max_len - len(word)))
 
 
 if __name__ == "__main__":
