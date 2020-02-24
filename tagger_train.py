@@ -135,6 +135,16 @@ def create_batches(sentences, sent_step, word_to_ix, char_to_ix, tag_to_ix, batc
     return b_sentence, b_symbols, b_target
 
 
+def pad_sentences_equal(b_sentence, b_symbols, b_target, pad_word, pad_char, pad_tag):
+    t_len = len(b_sentence[-1])
+
+    if not all(len(x) == t_len for x in b_sentence):
+        for word_seq, char_seq, tag_seq in zip(b_sentence, b_symbols, b_target):
+            while len(word_seq) != t_len:
+                tag_seq.append(pad_tag)
+                word_seq.append(pad_word)
+                char_seq.append([pad_char])
+
 
 def train_model(train_file, model_file):
     # parse data
@@ -183,15 +193,7 @@ def train_model(train_file, model_file):
             b_sentence, b_symbols, b_target = create_batches(sentences, step,word_to_ix,char_to_ix,tag_to_ix, batch_size)
 
             # batches pading
-            t_len = len(b_sentence[-1])
-
-            if not all(len(x) == t_len for x in b_sentence):
-                for word_seq, char_seq, tag_seq in zip(b_sentence, b_symbols, b_target):
-                    while len(word_seq) != t_len:
-                        word_seq.append(pad_word)
-                        tag_seq.append(pad_tag)
-                        char_seq.append([pad_char])
-
+            pad_sentences_equal(b_sentence, b_symbols, b_target, pad_word, pad_char, pad_tag)
 
             extend_by_pads(b_symbols, pad_char)
 
