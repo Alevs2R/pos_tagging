@@ -109,9 +109,32 @@ class LSTMTagger(nn.Module):
 
         return tag_scores.view(batch_s * word_s, -1)
 
+def extend_by_pads(chars_batch, pad):
+    max_len = 0
+    for sent in chars_batch:
+        lens = np.array([len(word) for word in sent])
+        max_len = max(np.max(lens),max_len)
 
-def one_epoch():
-    pass
+
+    for sen in chars_batch:
+        for word in sen:
+            if len(word) < max_len:
+                word.extend([pad] * (max_len - len(word)))
+
+
+def create_batches(sentences, sent_step, word_to_ix, char_to_ix, tag_to_ix, batch_size):
+    b_sentence = []
+    b_symbols = []
+    b_target = []
+
+    for i in range(sent_step*batch_size, min(len(sentences), (sent_step + 1) * batch_size)):
+        b_sentence.append(prepare_sequence(sentences[i][0], word_to_ix))
+        b_symbols.append(prepare_char_sequence(sentences[i][0], char_to_ix))
+        b_target.append(prepare_sequence(sentences[i][1], tag_to_ix))
+
+    return b_sentence, b_symbols, b_target
+
+
 
 def train_model(train_file, model_file):
     # parse data
@@ -148,73 +171,53 @@ def train_model(train_file, model_file):
     optimizer = optim.SGD(model.parameters(), lr=0.1)
 
     batch_size = 4
+    max_step = len(sentences) // batch_size + 1
+    max_epoch = 10
 
-    for epoch in range(10):
-        train_index = 0
+    print("All epoch %i, steps per epoch %i, batch size %i, len of sentences %i" % (max_epoch, max_step, batch_size, len(sentences)))
 
-        while train_index < len(sentences):
-            sentence_batch = []
-            symbols_batch = []
-            target_batch = []
 
-            # manually create batches
-            for i in range(batch_size):
-                if train_index + i == len(sentences):
-                    break
+    for epoch in range(max_epoch):
+        running_loss = 0.0
+        for step in range(max_step):
+            b_sentence, b_symbols, b_target = create_batches(sentences, step,word_to_ix,char_to_ix,tag_to_ix, batch_size)
 
-                sentence_batch.append(prepare_sequence(sentences[train_index + i][0], word_to_ix))
-                symbols_batch.append(prepare_char_sequence(sentences[train_index + i][0], char_to_ix))
-                target_batch.append(prepare_sequence(sentences[train_index + i][1], tag_to_ix))
+            # batches pading
+            t_len = len(b_sentence[-1])
 
-            train_index += batch_size
-
-            # pad sentence and word batches
-            curr_len = len(sentence_batch[-1])
-
-            if not all(len(x) == len(sentence_batch[-1]) for x in sentence_batch):
-                for word_seq, char_seq, tag_seq in zip(sentence_batch, symbols_batch, target_batch):
-                    while len(word_seq) != curr_len:
+            if not all(len(x) == t_len for x in b_sentence):
+                for word_seq, char_seq, tag_seq in zip(b_sentence, b_symbols, b_target):
+                    while len(word_seq) != t_len:
                         word_seq.append(pad_word)
                         tag_seq.append(pad_tag)
                         char_seq.append([pad_char])
 
-            extend_by_pads(symbols_batch, pad_char)
 
-            # print(sentence_batch)
-            # print(symbols_batch)
-            # print(target_batch)
+            extend_by_pads(b_symbols, pad_char)
 
-            sen_in = torch.tensor(sentence_batch, dtype=torch.long)
-            sym_in = torch.tensor(symbols_batch, dtype=torch.long)
-            targets = torch.tensor(target_batch, dtype=torch.long)
+            sen_in = torch.tensor(b_sentence, dtype=torch.long)
+            sym_in = torch.tensor(b_symbols, dtype=torch.long)
+            targets = torch.tensor(b_target, dtype=torch.long)
 
             model.zero_grad()
 
             tag_scores = model(sen_in, sym_in)
 
-            loss = loss_function(tag_scores.squeeze(1), targets.view(len(sentence_batch) * curr_len, ))
+            loss = loss_function(tag_scores.squeeze(1), targets.view(len(b_sentence) * t_len, ))
             loss.backward()
             optimizer.step()
 
-        print("Epoch " + str(epoch))
+            running_loss += loss.item()
+
+
+        print("Epoch %i, loss %.3f" %(epoch, running_loss/max_step))
+        running_loss = 0
         with open('pos_model'+str(epoch)+'.pickle', 'wb') as f:
             pickle.dump(model, f)
 
+    torch.save(model.state_dict(), model_file)
     print('Finished...')   
 
-
-def extend_by_pads(chars_batch, pad):
-    max_len = 0
-    for sent in chars_batch:
-        lens = np.array([len(word) for word in sent])
-        print(sent)
-        max_len = max(np.max(lens),max_len)
-
-
-    for sen in chars_batch:
-        for word in sen:
-            if len(word) < max_len:
-                word.extend([pad] * (max_len - len(word)))
 
 
 if __name__ == "__main__":
