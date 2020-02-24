@@ -214,10 +214,10 @@ def train_model(train_file, model_file):
 
         print("Epoch %i, loss %.3f" %(epoch, running_loss/max_step))
         running_loss = 0
-        with open('pos_model'+str(epoch)+'.pickle', 'wb') as f:
-            pickle.dump(model, f)
+        # with open('pos_model'+str(epoch)+'.pickle', 'wb') as f:
+        #     pickle.dump(model, f)
 
-    torch.save(model.state_dict(), model_file)
+    torch.save((word_to_ix, char_to_ix, ix_to_tag, model.state_dict()), model_file)
     print('Finished...')   
 
 
